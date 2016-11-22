@@ -1510,7 +1510,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     // check calling permissions
     if (!isTrustedCallingUid(callingUid) &&
-		!recordingAllowed(opPackageName, tid, clientUid)) {
+                 !recordingAllowed(opPackageName, tid, callingUid)) {
         ALOGE("openRecord() permission denied: recording not allowed");
         lStatus = PERMISSION_DENIED;
         goto Exit;
