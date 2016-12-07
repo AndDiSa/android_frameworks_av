@@ -139,7 +139,6 @@ GraphicBufferSource::GraphicBufferSource(
     mRepeatLastFrameTimestamp(-1ll),
     mLatestBufferId(-1),
     mLatestBufferFrameNum(0),
-    mLatestBufferUseCount(0),
     mLatestBufferFence(Fence::NO_FENCE),
     mRepeatBufferDeferred(false),
     mTimePerCaptureUs(-1ll),
@@ -946,6 +945,7 @@ int GraphicBufferSource::findMatchingCodecBuffer_l(
 void GraphicBufferSource::releaseBuffer(
         int &id, uint64_t frameNum,
         const sp<GraphicBuffer> buffer, const sp<Fence> &fence) {
+    ALOGV("releaseBuffer: slot=%d", id);
     if (mIsPersistent) {
         mConsumer->detachBuffer(id);
         mBufferSlot[id] = NULL;
@@ -989,6 +989,7 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
             if (item.mGraphicBuffer != NULL) {
                 ALOGV("onFrameAvailable: setting mBufferSlot %d", item.mSlot);
                 mBufferSlot[item.mSlot] = item.mGraphicBuffer;
+                mBufferUseCount[item.mSlot] = 0;
             }
 
             releaseBuffer(item.mSlot, item.mFrameNumber,
@@ -1022,6 +1023,7 @@ void GraphicBufferSource::onBuffersReleased() {
     for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
         if ((slotMask & 0x01) != 0) {
             mBufferSlot[i] = NULL;
+            mBufferUseCount[i] = 0;
         }
         slotMask >>= 1;
     }
