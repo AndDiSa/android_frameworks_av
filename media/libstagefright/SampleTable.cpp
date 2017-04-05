@@ -517,6 +517,8 @@ status_t SampleTable::setSyncSampleParams(off64_t data_offset, size_t data_size)
         return ERROR_MALFORMED;
     }
 
+    mSyncSampleOffset = data_offset;
+
     uint8_t header[8];
     if (mDataSource->readAt(
                 data_offset, header, sizeof(header)) < (ssize_t)sizeof(header)) {
@@ -567,6 +569,10 @@ status_t SampleTable::setSyncSampleParams(off64_t data_offset, size_t data_size)
     }
 
     for (size_t i = 0; i < numSyncSamples; ++i) {
+        if (mSyncSamples[i] == 0) {
+            ALOGE("b/32423862, unexpected zero value in stss");
+            continue;
+        }
         mSyncSamples[i] = ntohl(mSyncSamples[i]) - 1;
     }
 
