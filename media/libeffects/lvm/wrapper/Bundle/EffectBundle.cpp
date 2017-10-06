@@ -16,7 +16,7 @@
  */
 
 #define LOG_TAG "Bundle"
-#define ARRAY_SIZE(array) (sizeof (array) / sizeof (array)[0])
+#define ARRAY_SIZE(array) (sizeof array / sizeof array[0])
 //#define LOG_NDEBUG 0
 
 #include <assert.h>
@@ -25,10 +25,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <log/log.h>
-
+#include <cutils/log.h>
 #include "EffectBundle.h"
 #include "math.h"
+
 
 // effect_handle_t interface implementation for bass boost
 extern "C" const struct effect_interface_s gLvmEffectInterface;
@@ -43,19 +43,19 @@ extern "C" const struct effect_interface_s gLvmEffectInterface;
 #endif
 
 #define LVM_ERROR_CHECK(LvmStatus, callingFunc, calledFunc){\
-        if ((LvmStatus) == LVM_NULLADDRESS){\
+        if (LvmStatus == LVM_NULLADDRESS){\
             ALOGV("\tLVM_ERROR : Parameter error - "\
                     "null pointer returned by %s in %s\n\n\n\n", callingFunc, calledFunc);\
         }\
-        if ((LvmStatus) == LVM_ALIGNMENTERROR){\
+        if (LvmStatus == LVM_ALIGNMENTERROR){\
             ALOGV("\tLVM_ERROR : Parameter error - "\
                     "bad alignment returned by %s in %s\n\n\n\n", callingFunc, calledFunc);\
         }\
-        if ((LvmStatus) == LVM_INVALIDNUMSAMPLES){\
+        if (LvmStatus == LVM_INVALIDNUMSAMPLES){\
             ALOGV("\tLVM_ERROR : Parameter error - "\
                     "bad number of samples returned by %s in %s\n\n\n\n", callingFunc, calledFunc);\
         }\
-        if ((LvmStatus) == LVM_OUTOFRANGE){\
+        if (LvmStatus == LVM_OUTOFRANGE){\
             ALOGV("\tLVM_ERROR : Parameter error - "\
                     "out of range returned by %s in %s\n", callingFunc, calledFunc);\
         }\
@@ -369,10 +369,8 @@ exit:
             }
             delete pContext;
         }
-        if (pHandle != NULL)
-          *pHandle = (effect_handle_t)NULL;
+        *pHandle = (effect_handle_t)NULL;
     } else {
-      if (pHandle != NULL)
         *pHandle = (effect_handle_t)pContext;
     }
     ALOGV("\tEffectCreate end..\n\n");
@@ -532,6 +530,8 @@ void LvmGlobalBundle_init(){
 //----------------------------------------------------------------------------
 
 int LvmBundle_init(EffectContext *pContext){
+    int status;
+
     ALOGV("\tLvmBundle_init start");
 
     pContext->config.inputCfg.accessMode                    = EFFECT_BUFFER_ACCESS_READ;
@@ -745,6 +745,7 @@ int LvmBundle_process(LVM_INT16        *pIn,
                       int              frameCount,
                       EffectContext    *pContext){
 
+    LVM_ControlParams_t     ActiveParams;                           /* Current control Parameters */
     LVM_ReturnStatus_en     LvmStatus = LVM_SUCCESS;                /* Function call status */
     LVM_INT16               *pOutTmp;
 
@@ -1068,6 +1069,7 @@ int LvmEffect_disable(EffectContext *pContext){
 
 void LvmEffect_free(EffectContext *pContext){
     LVM_ReturnStatus_en     LvmStatus=LVM_SUCCESS;         /* Function call status */
+    LVM_ControlParams_t     params;                        /* Control Parameters */
     LVM_MemTab_t            MemTab;
 
     /* Free the algorithm memory */
@@ -2451,8 +2453,8 @@ int Equalizer_getParameter(EffectContext *pContext,
 
         *(int16_t *)pValue = -1500;
         *((int16_t *)pValue + 1) = 1500;
-        ALOGVV("%s EQ_PARAM_LEVEL_RANGE min %d, max %d",
-                __func__, *(int16_t *)pValue, *((int16_t *)pValue + 1));
+        //ALOGV("\tEqualizer_getParameter() EQ_PARAM_LEVEL_RANGE min %d, max %d",
+        //      *(int16_t *)pValue, *((int16_t *)pValue + 1));
         break;
 
     case EQ_PARAM_BAND_FREQ_RANGE: {
@@ -2543,7 +2545,7 @@ int Equalizer_getParameter(EffectContext *pContext,
     } break;
 
     case EQ_PARAM_PROPERTIES: {
-        constexpr uint32_t requiredValueSize = (2 + FIVEBAND_NUMBANDS) * sizeof(uint16_t);
+        const uint32_t requiredValueSize = (2 + FIVEBAND_NUMBANDS) * sizeof(uint16_t);
         if (*pValueSize < requiredValueSize) {
             ALOGV("%s EQ_PARAM_PROPERTIES invalid *pValueSize %u", __func__, *pValueSize);
             status = -EINVAL;
@@ -2659,7 +2661,7 @@ int Equalizer_setParameter(EffectContext *pContext,
         if (p[0] >= 0) {
             EqualizerSetPreset(pContext, (int)p[0]);
         } else {
-            constexpr uint32_t valueSizeRequired = (2 + FIVEBAND_NUMBANDS) * sizeof(int16_t);
+            const uint32_t valueSizeRequired = (2 + FIVEBAND_NUMBANDS) * sizeof(int16_t);
             if (valueSize < valueSizeRequired) {
               android_errorWriteLog(0x534e4554, "37563371");
               ALOGE("%s EQ_PARAM_PROPERTIES invalid valueSize %u < %u",
@@ -3090,8 +3092,11 @@ int Effect_process(effect_handle_t     self,
                               audio_buffer_t         *inBuffer,
                               audio_buffer_t         *outBuffer){
     EffectContext * pContext = (EffectContext *) self;
+    LVM_ReturnStatus_en     LvmStatus = LVM_SUCCESS;                /* Function call status */
     int    status = 0;
     int    processStatus = 0;
+    LVM_INT16   *in  = (LVM_INT16 *)inBuffer->raw;
+    LVM_INT16   *out = (LVM_INT16 *)outBuffer->raw;
 
 //ALOGV("\tEffect_process Start : Enabled = %d     Called = %d (%8d %8d %8d)",
 //pContext->pBundledContext->NumberEffectsEnabled,pContext->pBundledContext->NumberEffectsCalled,
@@ -3227,6 +3232,7 @@ int Effect_command(effect_handle_t  self,
                               uint32_t            *replySize,
                               void                *pReplyData){
     EffectContext * pContext = (EffectContext *) self;
+    int retsize;
 
     //ALOGV("\t\nEffect_command start");
 
@@ -3632,6 +3638,7 @@ int Effect_command(effect_handle_t  self,
             int16_t  leftdB, rightdB;
             int16_t  maxdB, pandB;
             int32_t  vol_ret[2] = {1<<24,1<<24}; // Apply no volume
+            int      status = 0;
             LVM_ControlParams_t     ActiveParams;           /* Current control Parameters */
             LVM_ReturnStatus_en     LvmStatus=LVM_SUCCESS;  /* Function call status */
 
