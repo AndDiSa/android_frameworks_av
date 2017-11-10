@@ -806,6 +806,7 @@ status_t OMXNodeInstance::useBuffer(
         return BAD_VALUE;
     }
 
+<<<<<<< HEAD
     // metadata buffers are not connected cross process
     // use a backup buffer instead of the actual buffer
     BufferMeta *buffer_meta;
@@ -820,6 +821,69 @@ status_t OMXNodeInstance::useBuffer(
         data = new (std::nothrow) OMX_U8[allottedSize];
         if (data == NULL) {
             return NO_MEMORY;
+=======
+    switch (omxBuffer.mBufferType) {
+        case OMXBuffer::kBufferTypePreset:
+            return useBuffer_l(portIndex, NULL, NULL, buffer);
+
+        case OMXBuffer::kBufferTypeSharedMem:
+            return useBuffer_l(portIndex, omxBuffer.mMem, NULL, buffer);
+
+        case OMXBuffer::kBufferTypeANWBuffer:
+            return useGraphicBuffer_l(portIndex, omxBuffer.mGraphicBuffer, buffer);
+
+        case OMXBuffer::kBufferTypeHidlMemory: {
+                sp<IHidlMemory> hidlMemory = mapMemory(omxBuffer.mHidlMemory);
+                return useBuffer_l(portIndex, NULL, hidlMemory, buffer);
+            }
+        default:
+            break;
+    }
+
+    return BAD_VALUE;
+}
+
+status_t OMXNodeInstance::useBuffer_l(
+        OMX_U32 portIndex, const sp<IMemory> &params,
+        const sp<IHidlMemory> &hParams, IOMX::buffer_id *buffer) {
+
+    BufferMeta *buffer_meta;
+    OMX_BUFFERHEADERTYPE *header;
+    OMX_ERRORTYPE err = OMX_ErrorNone;
+    bool isMetadata = mMetadataType[portIndex] != kMetadataBufferTypeInvalid;
+
+    if (!isMetadata && mGraphicBufferEnabled[portIndex]) {
+        ALOGE("b/62948670");
+        android_errorWriteLog(0x534e4554, "62948670");
+        return INVALID_OPERATION;
+    }
+
+    size_t paramsSize;
+    void* paramsPointer;
+    if (params != NULL && hParams != NULL) {
+        return BAD_VALUE;
+    }
+    if (params != NULL) {
+        paramsPointer = params->pointer();
+        paramsSize = params->size();
+    } else if (hParams != NULL) {
+        paramsPointer = hParams->getPointer();
+        paramsSize = hParams->getSize();
+    } else {
+        paramsPointer = nullptr;
+    }
+
+    OMX_U32 allottedSize;
+    if (isMetadata) {
+        if (mMetadataType[portIndex] == kMetadataBufferTypeGrallocSource) {
+            allottedSize = sizeof(VideoGrallocMetadata);
+        } else if (mMetadataType[portIndex] == kMetadataBufferTypeANWBuffer) {
+            allottedSize = sizeof(VideoNativeMetadata);
+        } else if (mMetadataType[portIndex] == kMetadataBufferTypeNativeHandleSource) {
+            allottedSize = sizeof(VideoNativeHandleMetadata);
+        } else {
+            return BAD_VALUE;
+>>>>>>> f630233... Track graphic buffer mode in OMXNodeInstance
         }
         memset(data, 0, allottedSize);
 
@@ -928,6 +992,13 @@ status_t OMXNodeInstance::useGraphicBuffer(
         return BAD_VALUE;
     }
     Mutex::Autolock autoLock(mLock);
+
+    if (!mGraphicBufferEnabled[portIndex]) {
+        // Report error if this is not in graphic buffer mode.
+        ALOGE("b/62948670");
+        android_errorWriteLog(0x534e4554, "62948670");
+        return INVALID_OPERATION;
+    }
 
     // See if the newer version of the extension is present.
     OMX_INDEXTYPE index;
