@@ -821,6 +821,12 @@ status_t OMXNodeInstance::useBuffer(
         return BAD_VALUE;
     }
 
+    if (!mSailed) {
+        ALOGE("b/35467458");
+        android_errorWriteLog(0x534e4554, "35467458");
+        return BAD_VALUE;
+    }
+
     // metadata buffers are not connected cross process
     // use a backup buffer instead of the actual buffer
     BufferMeta *buffer_meta;
@@ -1281,6 +1287,12 @@ status_t OMXNodeInstance::allocateSecureBuffer(
         return BAD_VALUE;
     }
 
+    if (!mSailed) {
+        ALOGE("b/35467458");
+        android_errorWriteLog(0x534e4554, "35467458");
+        return BAD_VALUE;
+    }
+
     BufferMeta *buffer_meta = new BufferMeta(size, portIndex);
 
     OMX_BUFFERHEADERTYPE *header;
@@ -1346,6 +1358,12 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
         ALOGE("b/63522818");
         android_errorWriteLog(0x534e4554, "63522818");
         return ERROR_UNSUPPORTED;
+    }
+
+    if (!mSailed) {
+        ALOGE("b/35467458");
+        android_errorWriteLog(0x534e4554, "35467458");
+        return BAD_VALUE;
     }
 
     if (!mSailed) {
