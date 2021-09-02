@@ -131,6 +131,7 @@ private:
 
     bool mWantsNALFragments;
 
+    size_t mSrcBufferSize;
     uint8_t *mSrcBuffer;
 
     size_t parseNALSize(const uint8_t *data) const;
@@ -3618,6 +3619,7 @@ MPEG4Source::MPEG4Source(
       mGroup(NULL),
       mBuffer(NULL),
       mWantsNALFragments(false),
+      mSrcBufferSize(0),
       mSrcBuffer(NULL) {
 
     memset(&mTrackFragmentHeaderInfo, 0, sizeof(mTrackFragmentHeaderInfo));
@@ -3728,6 +3730,7 @@ status_t MPEG4Source::start(MetaData *params) {
         mGroup = NULL;
         return ERROR_MALFORMED;
     }
+    mSrcBufferSize = max_size;
 
     mStarted = true;
 
@@ -3744,6 +3747,7 @@ status_t MPEG4Source::stop() {
         mBuffer = NULL;
     }
 
+    mSrcBufferSize = 0;
     delete[] mSrcBuffer;
     mSrcBuffer = NULL;
 
@@ -4579,11 +4583,15 @@ status_t MPEG4Source::read(
         ssize_t num_bytes_read = 0;
         int32_t drm = 0;
         bool usesDRM = (mFormat->findInt32(kKeyIsDRM, &drm) && drm != 0);
-        if (usesDRM) {
+        if (usesDRM && size <= mBuffer->size()) {
             num_bytes_read =
                 mDataSource->readAt(offset, (uint8_t*)mBuffer->data(), size);
-        } else {
+        } else if (!usesDRM && size <= mSrcBufferSize) {
             num_bytes_read = mDataSource->readAt(offset, mSrcBuffer, size);
+        } else {
+            // The sample is larger than the expected maximum size. Fall through and let the failure
+            // be handled by the following if.
+            android_errorWriteLog(0x534e4554, "188893559");
         }
 
         if (num_bytes_read < (ssize_t)size) {
